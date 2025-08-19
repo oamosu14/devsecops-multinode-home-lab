@@ -1,135 +1,249 @@
-# DevSecOps Multi-Node Home Lab (Open Source)
+# DevSecOps Multi-Node Home Lab 🚀
 
 Multi-Node DevSecOps Pipeline Architecture
 
-A production-style, **multi-node** DevSecOps pipeline using free/open-source tools.
-
-## 📐 Architecture (High-Level)
-See `docs/architecture.png` for a visual.
-- **Jenkins Node**: Jenkins (CI/CD), SonarQube (SAST)
-- **Docker Node**: Harbor (image registry), App runtime
-- **Ansible Node**: Infrastructure-as-Code and deployments
-- **Monitoring Node**: Nagios Core (or Prometheus + Grafana)
-
-```
-Developer → GitHub → Jenkins → (SAST) SonarQube
-                         ↓
-                     Build Image → Harbor (push)
-                         ↓
-                 Ansible → Deploy to Docker node
-                         ↓
-                  Monitoring watches all nodes
-```
-
-## 🧱 Prerequisites
-- 4 Linux VMs/servers (Ubuntu 22.04 or similar). Suggested specs:
-  - Jenkins+SonarQube: 4 vCPU / 8GB RAM
-  - Docker+Harbor: 4 vCPU / 8GB RAM
-  - Ansible: 2 vCPU / 4GB RAM
-  - Monitoring: 2 vCPU / 4GB RAM
-- SSH connectivity between nodes, and DNS or `/etc/hosts` entries for easy names.
-- Docker & Docker Compose on Jenkins and Docker nodes.
-- Git on all nodes. Ansible on the Ansible node.
-
-## 🌐 Example Host Mapping
-Update IPs to your environment and keep consistent across files.
-```
-192.168.1.10  jenkins-node
-192.168.1.11  docker-node
-192.168.1.12  ansible-node
-192.168.1.13  monitor-node
-```
-
-## 🚀 Step-by-Step Setup
-
-### 1) Clone this repo (on all nodes where applicable)
-```bash
-git clone https://github.com/YOURUSERNAME/devsecops-multinode-home-lab.git
-cd devsecops-multinode-home-lab
-```
-
-### 2) Jenkins + SonarQube (on jenkins-node)
-```bash
-cd docker
-docker compose -f jenkins-sonarqube.yml up -d
-# Jenkins  : http://jenkins-node:8080
-# SonarQube: http://jenkins-node:9000 (admin/admin → then change password)
-```
-**Jenkins initial unlock:**
-```bash
-docker exec -it jenkins cat /var/jenkins_home/secrets/initialAdminPassword
-```
-**Install plugins:** Git, Pipeline, Docker, Docker Pipeline, Credentials, Ansible, SonarQube Scanner, Warnings NG.
-
-**Credentials to add in Jenkins:**
-- `github-pat` (Secret text) – for private repos/webhooks
-- `harbor-creds` (Username/Password or robot)
-- `ansible-ssh` (SSH Username with private key)
-- `sonarqube-token` (Secret text)
-
-**Configure SonarQube in Jenkins:**
-Manage Jenkins → System → *SonarQube servers* → add `http://jenkins-node:9000` + token.
-
-### 3) Harbor (on docker-node) — Summary
-Harbor is a multi-container stack. Quick outline:
-```bash
-wget https://github.com/goharbor/harbor/releases/download/v2.11.0/harbor-online-installer-v2.11.0.tgz
-tar xzf harbor-online-installer-v2.11.0.tgz && cd harbor
-cp harbor.yml.tmpl harbor.yml
-# Edit harbor.yml:
-#   hostname: docker-node (or IP)
-#   harbor_admin_password: StrongPasswordHere
-./install.sh
-```
-Create a **project** (e.g., `library`) and a **robot account** (push/pull).
-
-### 4) Ansible node
-Update inventory and vars:
-```bash
-cd ansible
-# edit inventory.ini and group_vars/all.yml with real IPs and Harbor robot creds
-ansible all -i inventory.ini -m ping
-```
-Deploy app later via pipeline or manually:
-```bash
-ansible-playbook -i inventory.ini playbooks/deploy_app.yml
-```
-
-### 5) Jenkins Pipeline
-Create a Pipeline job that uses `jenkins/Jenkinsfile`. Update the environment section with your node IPs and credentials IDs. Then commit/push a change to trigger the pipeline:
-- Checkout → SAST (SonarQube) → SCA → Build → Trivy Scan → Push to Harbor → Ansible Deploy → (optional) ZAP DAST
-
-### 6) Monitoring (Monitoring node)
-- **Nagios Core (quick OSS):**
-  - Install packages, add hosts `jenkins-node`, `docker-node`, `ansible-node`, your app endpoint.
-- **Prometheus + Grafana (alternative):**
-  - Run Prometheus/Grafana in Docker and add exporters (`node_exporter`, `cAdvisor`, Jenkins exporter).
-
-## 🔧 Files of Interest
-- `docker/jenkins-sonarqube.yml` — Compose for Jenkins + SonarQube
-- `jenkins/Jenkinsfile` — CI/CD pipeline (multi-node)
-- `jenkins/zap-scan.sh` — DAST baseline runner
-- `ansible/inventory.ini` — node mapping
-- `ansible/group_vars/all.yml` — registry/image variables
-- `ansible/playbooks/deploy_app.yml` — deploys app container on docker-node
-- `docker/Dockerfile` + `src/index.html` — demo application (static)
-
-## 🧹 Teardown
-```bash
-# On jenkins-node
-cd docker && docker compose -f jenkins-sonarqube.yml down -v
-# On docker-node
-cd harbor && docker compose down -v   # if installed via compose
-# Containers on docker-node
-docker rm -f demoapp || true
-```
-
-## 📈 Future Enhancements
-- Replace Harbor HTTP with HTTPS (self-signed or real certs)
-- Add GitOps (ArgoCD) and Kubernetes (k3s) target
-- Add Terraform for infra provisioning
-- Expand security gates (policy-as-code, OPA/Conftest)
+This project builds a multi-node DevSecOps pipeline in a home lab using **free and open-source tools**. It demonstrates how software can move from development → testing → security scanning → deployment → monitoring in a **secure, automated, and production-like environment**.
 
 ---
 
-**Author**: Your Name — Built for educational and portfolio use.
+## 🔹 High-Level Architecture
+
+* **Developer Node** – Source code & Git repo (GitHub or GitLab)
+* **Jenkins Node** – CI/CD Orchestration + SonarQube container
+* **Ansible Node** – Configuration management & deployment
+* **Docker Node** – Build & run containerized apps
+* **Harbor Node** – Private container registry with vulnerability scanning
+* **Monitoring Node** – Prometheus + Grafana + Alertmanager
+
+![Architecture Diagram](docs/architecture.png)
+
+---
+
+## 🔹 Features
+
+* ✅ **CI/CD Pipeline** with Jenkins
+* ✅ **Code Quality & Security Scanning** (SAST, SCA, DAST)
+* ✅ **Container Image Scanning** with Harbor & Trivy
+* ✅ **Automated Deployments** with Ansible + Docker
+* ✅ **Monitoring & Alerts** with Prometheus + Grafana
+* ✅ **Multi-Node Setup** for realistic enterprise simulation
+
+---
+
+## 🔹 Prerequisites
+
+* At least **4–5 Linux VMs** (Ubuntu 22.04, RHEL 9, or CentOS 7/AlmaLinux)
+* Installed on each VM:
+
+  * `ssh`, `git`, `curl`, `wget`
+  * Docker & Docker Compose (for Jenkins/Harbor/Monitoring nodes)
+* GitHub/GitLab account for source control
+* Minimum 4 GB RAM for Jenkins VM (SonarQube is resource-heavy)
+
+---
+
+## 🔹 Step 1: Clone Repository
+
+```bash
+git clone https://github.com/<your-username>/devsecops-home-lab.git
+cd devsecops-home-lab
+```
+
+---
+
+## 🔹 Step 2: Start CI/CD Services (Jenkins Node)
+
+```bash
+cd docker
+docker-compose up -d --build
+```
+
+### Services Available
+
+* Jenkins → [http://localhost:8080](http://localhost:8080)
+* SonarQube → [http://localhost:9000](http://localhost:9000)
+* Harbor → [http://localhost](http://localhost) (admin / Harbor123!)
+
+---
+
+## 🔹 Step 3: Configure Jenkins
+
+1. Unlock Jenkins:
+
+   ```bash
+   cat /var/jenkins_home/secrets/initialAdminPassword
+   ```
+2. Install **suggested plugins**.
+3. Add Jenkins agents if you want to distribute builds.
+4. Install required plugins:
+
+   * Git
+   * AnsiColor
+   * SonarQube Scanner
+   * Docker
+   * Pipeline
+   * Blue Ocean
+
+---
+
+## 🔹 Step 4: Integrate SonarQube
+
+1. Log in to SonarQube → create a project.
+2. Generate a token.
+3. Add SonarQube credentials in Jenkins (`Manage Jenkins → Credentials`).
+4. Update Jenkinsfile with analysis stage:
+
+```groovy
+stage('Code Analysis') {
+  steps {
+    script {
+      sh 'sonar-scanner -Dsonar.projectKey=myapp -Dsonar.host.url=http://sonarqube:9000 -Dsonar.login=$SONAR_TOKEN'
+    }
+  }
+}
+```
+
+---
+
+## 🔹 Step 5: Harbor Setup
+
+1. Access Harbor at [http://localhost](http://localhost).
+2. Login with `admin / Harbor123!`.
+3. Create a project (e.g., `devsecops`).
+4. Push images:
+
+   ```bash
+   docker login harbor.local
+   docker tag myapp:latest harbor.local/devsecops/myapp:latest
+   docker push harbor.local/devsecops/myapp:latest
+   ```
+
+---
+
+## 🔹 Step 6: Ansible Deployment
+
+* Inventory (`inventory.ini`):
+
+```ini
+[docker_nodes]
+192.168.56.20 ansible_user=devops
+```
+
+* Playbook (`deploy.yml`):
+
+```yaml
+- hosts: docker_nodes
+  become: true
+  tasks:
+    - name: Pull image from Harbor
+      docker_image:
+        name: harbor.local/devsecops/myapp:latest
+        source: pull
+    - name: Run container
+      docker_container:
+        name: myapp
+        image: harbor.local/devsecops/myapp:latest
+        state: started
+        ports:
+          - "8081:80"
+```
+
+Run:
+
+```bash
+ansible-playbook -i inventory.ini deploy.yml
+```
+
+---
+
+## 🔹 Step 7: Security Scanning
+
+* **SAST (Static)** → SonarQube
+* **SCA (Dependencies)** → Snyk / OWASP Dependency Check
+* **Container Scans** → Trivy (integrated with Harbor)
+* **DAST (Runtime)** → OWASP ZAP
+
+Example Trivy scan:
+
+```bash
+trivy image harbor.local/devsecops/myapp:latest
+```
+
+---
+
+## 🔹 Step 8: Monitoring (Prometheus + Grafana)
+
+1. Start containers:
+
+   ```bash
+   cd monitoring
+   docker-compose up -d
+   ```
+2. Access:
+
+   * Prometheus → [http://localhost:9090](http://localhost:9090)
+   * Grafana → [http://localhost:3000](http://localhost:3000) (admin / admin)
+3. Import Jenkins & Docker dashboards.
+4. Configure alerts in Alertmanager (email, Slack, etc).
+
+---
+
+## 🔹 Example Jenkinsfile
+
+```groovy
+pipeline {
+  agent any
+  stages {
+    stage('Checkout') {
+      steps { git 'https://github.com/<your-repo>/sample-app.git' }
+    }
+    stage('Build') {
+      steps { sh 'docker build -t myapp:latest .' }
+    }
+    stage('Code Analysis') {
+      steps { sh 'sonar-scanner' }
+    }
+    stage('Unit Tests') {
+      steps { sh 'pytest tests/' }
+    }
+    stage('Security Scan') {
+      steps { sh 'trivy image myapp:latest' }
+    }
+    stage('Push to Harbor') {
+      steps {
+        sh '''
+          docker tag myapp:latest harbor.local/devsecops/myapp:latest
+          docker push harbor.local/devsecops/myapp:latest
+        '''
+      }
+    }
+    stage('Deploy with Ansible') {
+      steps { sh 'ansible-playbook -i inventory.ini deploy.yml' }
+    }
+  }
+}
+```
+
+---
+
+## 🔹 Credentials & Defaults
+
+* Jenkins UI → `http://<jenkins-node>:8080`
+* SonarQube → `http://<jenkins-node>:9000` (`admin / admin`)
+* Harbor → `http://<harbor-node>` (`admin / Harbor123!`)
+* Grafana → `http://<monitor-node>:3000` (`admin / admin`)
+
+---
+
+## 🔹 Why This Project Matters
+
+* **Hands-on simulation** of enterprise DevSecOps
+* **Multi-layer security** with SAST + SCA + DAST + container scans
+* **CI/CD automation** builds confidence in modern delivery practices
+* **End-to-end monitoring** ensures reliability in production
+* **Great talking point for interviews & resumes**
+
+---
+
+✅ This README now covers all services, configs, credentials, monitoring, and security scanning for a multi-node DevSecOps home lab.
+
